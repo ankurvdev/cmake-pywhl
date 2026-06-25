@@ -91,7 +91,7 @@ def parse_manifest(manifest: Path) -> BuildInfo:
         return list(filter(len, filter(None, paths.split(";"))))
 
     def create_source_dest_paths(paths: list[str]) -> dict[Path, Path]:
-        return {Path(src): Path(dst or Path(src).name) for path in paths for src, dst in [(([*path.split("@"), ""])[0:2])]}
+        return {Path(src): Path(dst or Path(src).name) for path in paths for src, dst in [([*path.split("@"), ""])[:2]]}
 
     def parse_manifest(manifest: Path) -> ModuleInfo:
         modconfig = read_config(manifest)
@@ -111,7 +111,7 @@ def parse_manifest(manifest: Path) -> BuildInfo:
 
         return modinfo
 
-    def path_or_none(val: str| None)-> Path | None:
+    def path_or_none(val: str | None) -> Path | None:
         return None if val is None else Path(val)
 
     return BuildInfo(
@@ -154,27 +154,30 @@ class CMakeBuildWheel:
         if self.build_info.entry_points_file:
             self.dependencies.add(self.build_info.entry_points_file)
 
-    def _generate_editable_finder(self, name: str) -> str:  # noqa: C901
-        """Create a string containing the code for the MetaPathFinder and PathEntryFinder."""
+    def _script_path_mapping(self, mod: ModuleInfo, script_path: Path) -> dict[str, str]:
+        script_root = mod.src_root / script_path
+        if not script_root.exists():
+            raise CMakeBuildWheelError(f"Script {script_root.as_posix()} not found")
         mapping: dict[str, str] = {}
-        if len(self.build_info.modules) == 0:
+        if script_root.is_dir():
+            if (script_root / "__init__.py").exists():
+                mapping[mod.name] = script_root.as_posix()
+            else:
+                for subpath in script_root.rglob("*.py"):
+                    mapping[f"{mod.name}.{subpath.stem}"] = subpath.as_posix()
+        elif script_root.suffix == ".py":
+            mapping[f"{mod.name}.{script_root.stem}"] = script_root.as_posix()
+            if script_path.name == "__init__.py":
+                mapping[mod.name] = script_path.absolute().as_posix()
+        return mapping
+
+    def _build_editable_mapping(self) -> dict[str, str]:
+        if not self.build_info.modules:
             raise ValueError("Empty self.build_info.modules")
+        mapping: dict[str, str] = {}
         for mod in self.build_info.modules:
             for script_path in mod.scripts:
-                script_root = mod.src_root / script_path
-                if not script_root.exists():
-                    raise CMakeBuildWheelError(f"Script {script_root.as_posix()} not found")
-                if script_root.is_dir():
-                    if (script_root / "__init__.py").exists():
-                        mapping[mod.name] = script_root.as_posix()
-                    else:
-                        for subpath in script_root.rglob("*.py"):
-                            mapping[f"{mod.name}.{subpath.stem}"] = subpath.as_posix()
-                if script_root.is_file() and script_root.suffix == ".py":
-                    mapping[f"{mod.name}.{script_root.stem}"] = script_root.as_posix()
-                    if script_path.name == "__init__.py":
-                        mapping[mod.name] = script_path.absolute().as_posix()
-
+                mapping.update(self._script_path_mapping(mod, script_path))
             for target_lib in mod.target_libs:
                 libname = target_lib.stem
                 mapping[libname] = target_lib.as_posix()
@@ -184,6 +187,11 @@ class CMakeBuildWheel:
                 mapping[target_bin.stem] = target_bin.as_posix()
             for data_path in mod.data:
                 mapping[data_path.name] = data_path.as_posix()
+        return mapping
+
+    def _generate_editable_finder(self, name: str) -> str:
+        """Create a string containing the code for the MetaPathFinder and PathEntryFinder."""
+        mapping = self._build_editable_mapping()
         namespaces: dict[str, str] = {}
         tmpl = (Path(__file__).parent / "editable_finder.py").read_text()
         tmpl = tmpl.replace(
@@ -196,12 +204,11 @@ class CMakeBuildWheel:
             f"NAMESPACES: dict[str, str] = {namespaces!r}",
             count=1,
         )
-        tmpl = tmpl.replace(
+        return tmpl.replace(
             'PATH_PLACEHOLDER: str = ".__path_hook__"  # TEMPLATE-SUBSTITUTION-MARKER',
             f'PATH_PLACEHOLDER: str = {name!r} + ".__path_hook__"',
             count=1,
         )
-        return tmpl
 
     def get_requires_for_build_sdist(self, _config_settings: dict[str, object] | None = None) -> list[str]:
         return []  # No dependencies for building with this file as the build backend
