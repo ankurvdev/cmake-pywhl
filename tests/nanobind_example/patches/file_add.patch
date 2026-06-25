@@ -1,0 +1,15 @@
+--- a/tests/nanobind_example/CMakeLists.txt
++++ b/tests/nanobind_example/CMakeLists.txt
+@@ -40,6 +40,7 @@ add_pywhl_module(nanobind_example
+     SCRIPTS
+         ${nanobind_example_upstream_SOURCE_DIR}/src/nanobind_example
+         ${CMAKE_CURRENT_SOURCE_DIR}/scripts/example.py
++        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/example_added.py
+ )
+
+ add_pywhl_package(nanobind_example
+--- /dev/null
++++ b/tests/nanobind_example/scripts/example_added.py
+@@ -0,0 +1,2 @@
++def new_greeting() -> str:
++    return "hello new"
