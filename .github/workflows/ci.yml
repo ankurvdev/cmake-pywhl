@@ -31,13 +31,14 @@ jobs:
   # Build PyWhlConfig.cmake, compile the nanobind test extension, run tests
   # ---------------------------------------------------------------------------
   test:
-    name: Test (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
     needs: lint
 
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.12", "3.13"]
 
     steps:
@@ -59,28 +60,30 @@ jobs:
       - name: Cache FetchContent downloads
         uses: actions/cache@v4
         with:
-          path: /tmp/fetchcontent-cache
+          path: ${{ runner.temp }}/fetchcontent-cache
           key: fetchcontent-${{ runner.os }}-${{ hashFiles('tests/nanobind_example/CMakeLists.txt') }}
           restore-keys: |
             fetchcontent-${{ runner.os }}-
 
       - name: Build PyWhlConfig.cmake
-        run: ./build.sh "$RUNNER_TEMP/PyWhlConfig.cmake"
+        shell: bash
+        run: bash build.sh "$RUNNER_TEMP/PyWhlConfig.cmake"
 
       - name: Verify PyWhlConfig.cmake was produced
+        shell: bash
         run: |
           test -f "$RUNNER_TEMP/PyWhlConfig.cmake"
           echo "PyWhlConfig.cmake size: $(wc -c < "$RUNNER_TEMP/PyWhlConfig.cmake") bytes"
 
       - name: Run test suite
         env:
-          CMAKE_FETCHCONTENT_BASE_DIR: /tmp/fetchcontent-cache
+          CMAKE_FETCHCONTENT_BASE_DIR: ${{ runner.temp }}/fetchcontent-cache
         run: pytest tests/ -v --tb=short
 
       - name: Upload PyWhlConfig.cmake artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PyWhlConfig-py${{ matrix.python-version }}
+          name: PyWhlConfig-${{ matrix.os }}-py${{ matrix.python-version }}
           path: ${{ runner.temp }}/PyWhlConfig.cmake
           if-no-files-found: error
 
