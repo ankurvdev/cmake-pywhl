@@ -201,17 +201,14 @@ class CMakeBuildWheel:
         tmpl = tmpl.replace(
             "MAPPING: dict[str, str] = {}  # TEMPLATE-SUBSTITUTION-MARKER",
             f"MAPPING: dict[str, str] = {mapping!r}",
-            count=1,
         )
         tmpl = tmpl.replace(
             "NAMESPACES: dict[str, str] = {}  # TEMPLATE-SUBSTITUTION-MARKER",
             f"NAMESPACES: dict[str, str] = {namespaces!r}",
-            count=1,
         )
         return tmpl.replace(
             'PATH_PLACEHOLDER: str = ".__path_hook__"  # TEMPLATE-SUBSTITUTION-MARKER',
             f'PATH_PLACEHOLDER: str = {name!r} + ".__path_hook__"',
-            count=1,
         )
 
     def get_requires_for_build_sdist(self, _config_settings: dict[str, object] | None = None) -> list[str]:

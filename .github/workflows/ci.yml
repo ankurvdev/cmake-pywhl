@@ -78,7 +78,7 @@ jobs:
       - name: Run test suite
         env:
           CMAKE_FETCHCONTENT_BASE_DIR: ${{ runner.temp }}/fetchcontent-cache
-        run: pytest tests/test.py -v --tb=short
+        run: pytest tests/ -v --tb=short
 
       - name: Upload PyWhlConfig.cmake artifact
         uses: actions/upload-artifact@v4

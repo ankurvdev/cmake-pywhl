@@ -16,8 +16,6 @@ Each test folder must provide:
   patches/py_add.patch            — adds a new .py file + updates CMakeLists.txt
 """
 
-from __future__ import annotations
-
 import os
 import shlex
 import shutil
@@ -25,14 +23,10 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pytest
 
-if TYPE_CHECKING:
-    from collections.abc import Sequence
-
-TESTS_DIR = Path(__file__).parent
+TESTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TESTS_DIR.parent
 
 
@@ -42,7 +36,7 @@ REPO_ROOT = TESTS_DIR.parent
 
 
 def _run(
-    cmd: Sequence[str | Path],
+    cmd: list[str | Path],
     *,
     cwd: Path | str | None = None,
     env: dict[str, str] | None = None,
@@ -214,7 +208,8 @@ def _test_edit(ctx: _TestCtx) -> None:
 
     # Apply upstream patch (e.g. C++ change) to the FetchContent source repo if present
     upstream_patch = ctx.patches_dir / "cpp_edit.patch"
-    upstream_src = next((ctx.build_dir / "_fetchcontent").rglob("*/.git")).parent  # find the .git dir in the FetchContent source copy
+    fetchcontentdir = Path(os.environ.get("CMAKE_FETCHCONTENT_BASE_DIR", str(ctx.build_dir / "_fetchcontent")))
+    upstream_src = next((fetchcontentdir).rglob("*/.git")).parent  # find the .git dir in the FetchContent source copy
     _run(["git", "-C", str(upstream_src), "apply", "--whitespace=nowarn", str(upstream_patch)])
 
     # Pre-rebuild: Python change visible, C++ unchanged
