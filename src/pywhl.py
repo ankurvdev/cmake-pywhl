@@ -16,7 +16,6 @@ import shutil
 import site
 import string
 import sys
-import tempfile
 import zipfile
 from collections.abc import Generator
 from dataclasses import dataclass

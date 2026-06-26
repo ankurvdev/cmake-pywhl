@@ -57,14 +57,6 @@ jobs:
       - name: Install Python test dependencies
         run: pip install pytest
 
-      - name: Cache FetchContent downloads
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/fetchcontent-cache
-          key: fetchcontent-${{ runner.os }}-${{ hashFiles('tests/nanobind_example/CMakeLists.txt') }}
-          restore-keys: |
-            fetchcontent-${{ runner.os }}-
-
       - name: Build PyWhlConfig.cmake
         run: python build.py "${{ runner.temp }}/PyWhlConfig.cmake"
 
@@ -72,8 +64,6 @@ jobs:
         run: python -c "import os, sys; p='${{ runner.temp }}/PyWhlConfig.cmake'; sys.exit(0) if os.path.isfile(p) and print('PyWhlConfig.cmake size:', os.path.getsize(p), 'bytes') is None else sys.exit(1)"
 
       - name: Run test suite
-        env:
-          CMAKE_FETCHCONTENT_BASE_DIR: ${{ runner.temp }}/fetchcontent-cache
         run: pytest tests/ -v --tb=short
 
       - name: Upload PyWhlConfig.cmake artifact

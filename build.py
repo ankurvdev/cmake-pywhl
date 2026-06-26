@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-import sys
 import shutil
+import sys
 from pathlib import Path
 
 script_dir = Path(__file__).parent

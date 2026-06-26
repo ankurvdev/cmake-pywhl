@@ -16,7 +16,6 @@ Each test folder must provide:
   patches/py_add.patch            — adds a new .py file + updates CMakeLists.txt
 """
 
-import os
 import shlex
 import shutil
 import subprocess
@@ -41,7 +40,6 @@ def _run(
     cwd: Path | str | None = None,
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    print(f"  $ {shlex.join(str(c) for c in cmd)}", flush=True)
     result = subprocess.run(
         [str(c) for c in cmd],
         cwd=cwd,
@@ -61,7 +59,7 @@ def _run(
 
 
 def _log(msg: str) -> None:
-    print(f"\n>>> {msg}", flush=True)
+    pass
 
 
 def _make_venv(path: Path) -> None:
@@ -89,11 +87,6 @@ def _mtimes(files: list[Path]) -> dict[Path, float]:
     return {f: f.stat().st_mtime for f in files if f.exists()}
 
 
-def _cmake_env(build_dir: Path) -> dict[str, str]:
-    env = os.environ.copy()
-    env.setdefault("CMAKE_FETCHCONTENT_BASE_DIR", str(build_dir / "_fetchcontent"))
-    return env
-
 # ---------------------------------------------------------------------------
 # Build-phase helpers
 # ---------------------------------------------------------------------------
@@ -105,16 +98,16 @@ def _cmake_configure(
     python: Path,
     cmake_prefix: Path,
 ) -> None:
-    env = _cmake_env(build_dir)
     _run(
         [
-            "cmake", source_dir,
-            "-B", build_dir,
+            "cmake",
+            source_dir,
+            "-B",
+            build_dir,
             f"-DPython3_EXECUTABLE={python}",
             f"-DCMAKE_PREFIX_PATH={cmake_prefix}",
-            f"-DFETCHCONTENT_BASE_DIR={env['CMAKE_FETCHCONTENT_BASE_DIR']}",
+            f"-DFETCHCONTENT_BASE_DIR={(build_dir / '_fetchcontent').as_posix()}",
         ],
-        env=env,
     )
 
 
@@ -122,7 +115,7 @@ def _cmake_build(build_dir: Path, target: str | None = None) -> None:
     cmd: list[str | Path] = ["cmake", "--build", build_dir]
     if target:
         cmd += ["--target", target]
-    _run(cmd, env=_cmake_env(build_dir))
+    _run(cmd)
 
 
 def _setup_build(
@@ -140,8 +133,8 @@ def _setup_build(
     build_python = _venv_python(build_venv)
 
     _cmake_configure(folder_copy, build_dir, build_python, cmake_prefix=source_copy)
-    _cmake_build(build_dir)              # extension + editable install (ALL targets)
-    _cmake_build(build_dir, "all_whl")   # generate .whl files
+    _cmake_build(build_dir)  # extension + editable install (ALL targets)
+    _cmake_build(build_dir, "all_whl")  # generate .whl files
 
     build_sp = _site_packages(build_venv)
     editable = _editable_files(build_sp)
@@ -158,11 +151,7 @@ def _assert_patterns_present(sp: Path, patterns_file: Path, *, label: str) -> li
     """Check every pattern in patterns_file exists under sp. Returns the patterns."""
     if not patterns_file.exists():
         return []
-    patterns = [
-        ln.strip()
-        for ln in patterns_file.read_text().splitlines()
-        if ln.strip() and not ln.startswith("#")
-    ]
+    patterns = [ln.strip() for ln in patterns_file.read_text().splitlines() if ln.strip() and not ln.startswith("#")]
     for pattern in patterns:
         if not list(sp.glob(pattern)):
             pytest.fail(f"[{label}] Expected pattern not found in {sp}: {pattern!r}")
@@ -208,8 +197,7 @@ def _test_edit(ctx: _TestCtx) -> None:
 
     # Apply upstream patch (e.g. C++ change) to the FetchContent source repo if present
     upstream_patch = ctx.patches_dir / "cpp_edit.patch"
-    fetchcontentdir = Path(os.environ.get("CMAKE_FETCHCONTENT_BASE_DIR", str(ctx.build_dir / "_fetchcontent")))
-    upstream_src = next((fetchcontentdir).rglob("*/.git")).parent  # find the .git dir in the FetchContent source copy
+    upstream_src = next((ctx.build_dir / "_fetchcontent").rglob("*/.git")).parent
     _run(["git", "-C", str(upstream_src), "apply", "--whitespace=nowarn", str(upstream_patch)])
 
     # Pre-rebuild: Python change visible, C++ unchanged
@@ -267,9 +255,7 @@ def _test_folder_names() -> list[str]:
     return [
         d.name
         for d in TESTS_DIR.iterdir()
-        if d.is_dir()
-        and not d.name.startswith(("_", "."))
-        and (d / "CMakeLists.txt").exists()
+        if d.is_dir() and not d.name.startswith(("_", ".")) and (d / "CMakeLists.txt").exists()
     ]
 
 
@@ -325,10 +311,14 @@ def test_cmake_pywhl(folder_name: str, tmp_path: Path) -> None:
     # 3. Verify file presence
     _log("checking installed file patterns")
     whl_patterns = _assert_patterns_present(
-        runtime_sp, test_scripts / "whl_install_files.txt", label="runtime-venv",
+        runtime_sp,
+        test_scripts / "whl_install_files.txt",
+        label="runtime-venv",
     )
     _assert_patterns_present(
-        build_sp, test_scripts / "inplace_install_patterns.txt", label="build-venv",
+        build_sp,
+        test_scripts / "inplace_install_patterns.txt",
+        label="build-venv",
     )
 
     # 4. Editable install: whl files must NOT be directly in build venv
