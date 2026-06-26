@@ -53,13 +53,8 @@ jobs:
         uses: jwlawson/actions-setup-cmake@v2
         with:
           cmake-version: "3.28"
-
-      - name: Enable long paths (Windows only)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f
-          git config --system core.longpaths true
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
 
       - name: Install Python test dependencies
         run: pip install pytest
