@@ -47,6 +47,7 @@ def _run(
     cwd: Path | str | None = None,
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    print(f"  $ {shlex.join(str(c) for c in cmd)}", flush=True)
     result = subprocess.run(
         [str(c) for c in cmd],
         cwd=cwd,
@@ -55,15 +56,18 @@ def _run(
         text=True,
         check=False,
     )
-    print(f"cd {cwd or os.getcwd()}")
-    print(shlex.join(str(c) for c in cmd))
     if result.returncode != 0:
         raise RuntimeError(
-            f"Command failed: {' '.join(str(c) for c in cmd)}\n"
+            f"Command failed (cwd={cwd or Path.cwd()}):\n"
+            f"  {shlex.join(str(c) for c in cmd)}\n"
             f"--- stdout ---\n{result.stdout}\n"
             f"--- stderr ---\n{result.stderr}",
         )
     return result
+
+
+def _log(msg: str) -> None:
+    print(f"\n>>> {msg}", flush=True)
 
 
 def _make_venv(path: Path) -> None:
@@ -295,16 +299,21 @@ def test_cmake_pywhl(folder_name: str, tmp_path: Path) -> None:
     runtime_venv = tmp_path / "runtime_venv"
     build_dir.mkdir()
 
+    _log("copying repo source tree")
     shutil.copytree(
         REPO_ROOT,
         source_copy,
         ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
     )
+    _log("building PyWhlConfig.cmake")
     _run(["bash", source_copy / "build.sh", source_copy / "PyWhlConfig.cmake"])
 
     # 1. cmake configure + build
+    _log("cmake configure + build")
     build_sp, editable, whl_files = _setup_build(source_copy, folder_name, build_dir, build_venv)
     build_python = _venv_python(build_venv)
+    _log(f"editable files: {[f.name for f in editable]}")
+    _log(f"wheel files: {[f.name for f in whl_files]}")
 
     if not editable:
         pytest.fail("No editable install files (*.pth / *_finder.py) found in build venv")
@@ -312,12 +321,14 @@ def test_cmake_pywhl(folder_name: str, tmp_path: Path) -> None:
         pytest.fail("No .whl files found in build directory after cmake build")
 
     # 2. Install wheels into runtime venv
+    _log("installing wheels into runtime venv")
     _make_venv(runtime_venv)
     runtime_python = _venv_python(runtime_venv)
     _run([runtime_python, "-m", "pip", "install", "--no-index", *whl_files])
     runtime_sp = _site_packages(runtime_venv)
 
     # 3. Verify file presence
+    _log("checking installed file patterns")
     whl_patterns = _assert_patterns_present(
         runtime_sp, test_scripts / "whl_install_files.txt", label="runtime-venv",
     )
@@ -329,6 +340,7 @@ def test_cmake_pywhl(folder_name: str, tmp_path: Path) -> None:
     _assert_patterns_absent(build_sp, whl_patterns, label="build-venv editable check")
 
     # 5. Functional test in build venv (via editable install)
+    _log("functional test — build venv (editable install)")
     whl_install_test = test_scripts / "whl_install_test.py"
     if whl_install_test.exists():
         _run([build_python, whl_install_test])
@@ -343,15 +355,19 @@ def test_cmake_pywhl(folder_name: str, tmp_path: Path) -> None:
     )
 
     # 6. Source-change patch: visible immediately, no editable regeneration on rebuild
+    _log("patch phase — py_edit + cpp_edit")
     _test_edit(ctx)
 
     # 7. File-add patch: editable must be regenerated on rebuild
+    _log("patch phase — py_add")
     _test_py_add(ctx)
 
     # 8. Delete build venv + source to prove wheel is self-contained
+    _log("removing build venv + source; verifying wheel is self-contained")
     shutil.rmtree(build_venv)
     shutil.rmtree(source_copy / "tests" / folder_name)
 
     # 9. Functional test in runtime venv (standalone wheel install)
+    _log("functional test — runtime venv (wheel install)")
     if whl_install_test.exists():
         _run([runtime_python, whl_install_test])

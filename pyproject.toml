@@ -44,9 +44,13 @@ ignore = [
     "S603", #  subprocess call - check for execution of untrusted input.
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["nanobind_example"]
+
 [tool.ruff.per-file-ignores]
 # Test scripts use assert for pytest assertions
-"tests/test.py" = ["S101"]
+"tests/test.py" = ["S101", "T201"]
 # scripts/ dirs inside test folders are explicitly listed in CMake SCRIPTS, not Python packages
 "tests/**/scripts/*.py" = ["INP001"]
 # Per-folder test helpers are run as standalone scripts, not part of a package
