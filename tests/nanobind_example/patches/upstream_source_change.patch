@@ -1,7 +1,0 @@
---- a/src/nanobind_example_ext.cpp
-+++ b/src/nanobind_example_ext.cpp
-@@ -1,6 +1,6 @@
- NB_MODULE(nanobind_example_ext, m) {
--    m.def("add", [](int a, int b) { return a + b; }, nb::arg("a"), nb::arg("b"));
-+    m.def("add", [](int a, int b) { return a * b; }, nb::arg("a"), nb::arg("b"));
- }

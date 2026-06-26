@@ -179,12 +179,16 @@ class CMakeBuildWheel:
             for script_path in mod.scripts:
                 mapping.update(self._script_path_mapping(mod, script_path))
             for target_lib in mod.target_libs:
-                libname = target_lib.stem
-                mapping[libname] = target_lib.as_posix()
-                mapping[re.sub(r"^lib", "", libname)] = target_lib.as_posix()
-                mapping[re.sub(r".abi[0-9\.]+", "", libname)] = target_lib.as_posix()
+                for libname in [
+                    target_lib.stem,
+                    re.sub(r".abi[0-9\.]+", "", target_lib.stem),
+                    re.sub(r"^lib", "", target_lib.stem),
+                ]:
+                    mapping[libname] = target_lib.as_posix()
+                    mapping[mod.name + "." + libname] = target_lib.as_posix()
             for target_bin in mod.target_bins:
                 mapping[target_bin.stem] = target_bin.as_posix()
+                mapping[mod.name + "." + target_bin.stem] = target_bin.as_posix()
             for data_path in mod.data:
                 mapping[data_path.name] = data_path.as_posix()
         return mapping
@@ -403,14 +407,15 @@ class CMakeBuildWheel:
         """
         raise CMakeBuildWheelError("build_editable Untested")
 
-    def _build_editable_at(self, out_dir: Path) -> None:
+    def _build_editable_at(self, out_dir: Path, _force_reinstall: bool) -> None:
         for fpath, src_file, contents in self._generate_wheel_content(editable=True):
             fabspath = out_dir / fpath
             fabspath.parent.mkdir(parents=True, exist_ok=True)
             if src_file is not None:
                 _ = shutil.copyfile(src_file, fabspath)
             elif contents is not None:
-                _ = fabspath.write_text(contents, encoding="utf-8")
+                if not fabspath.exists() or fabspath.read_text(encoding="utf-8") != contents:
+                    _ = fabspath.write_text(contents, encoding="utf-8")
             else:
                 raise ValueError(f"Neither file nor contents found for {fpath.as_posix()}")
 
@@ -443,20 +448,9 @@ class CMakeBuildWheel:
 
     def install(self, editable: bool, force_reinstall: bool = False) -> None:
         if editable:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                self._build_editable_at(Path(tmpdir))
-                files = [fpath.relative_to(tmpdir) for fpath in Path(tmpdir).rglob("*") if fpath.is_file()]
-                # The first one in site.getsitemodules() is the directory for the venv if we are in a venv
-                site_package_path = Path(site.getsitepackages()[0])
-                conflicts = [fpath for fpath in files if (site_package_path / fpath).exists()]
-                if not force_reinstall and len(conflicts) > 0:
-                    raise CMakeBuildWheelError(
-                        "Conflicting files: \n\t" + "\n\t".join(fpath.as_posix() for fpath in files),
-                    )
-                for fpath in files:
-                    (site_package_path / fpath).parent.mkdir(parents=True, exist_ok=True)
-                    _ = shutil.copy2(tmpdir / fpath, site_package_path / fpath)
-                    log.debug(f"Installed {(site_package_path / fpath).as_posix()}")
+            # The first one in site.getsitemodules() is the directory for the venv if we are in a venv
+            site_package_path = Path(site.getsitepackages()[0])
+            self._build_editable_at(Path(site_package_path), force_reinstall)
         else:
             raise CMakeBuildWheelError("Python install ('install') Unsupported")
 

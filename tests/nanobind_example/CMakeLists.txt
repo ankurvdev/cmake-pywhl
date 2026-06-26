@@ -25,7 +25,7 @@ list(APPEND CMAKE_PREFIX_PATH "${NANOBIND_CMAKE_DIR}")
 include(FetchContent)
 FetchContent_Declare(nanobind_example_upstream
     GIT_REPOSITORY https://github.com/wjakob/nanobind_example.git
-    GIT_TAG        master
+    GIT_TAG        03bd872fdb8f34f7ddb68ced81e4dc2ce08283c7
     GIT_SHALLOW    TRUE
 )
 FetchContent_GetProperties(nanobind_example_upstream)
@@ -49,5 +49,3 @@ add_pywhl_package(nanobind_example
     LICENSE_FILE
         "${nanobind_example_upstream_SOURCE_DIR}/LICENSE"
 )
-
-add_custom_target(all_whl DEPENDS nanobind_example)

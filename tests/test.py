@@ -11,15 +11,15 @@ Each test folder must provide:
   tests/inplace_file_changed_test.py               — run right after source_change.patch (pre-rebuild)
   tests/inplace_file_changed_post_rebuild_test.py  — run after cmake rebuild following source_change.patch
   tests/inplace_file_add_test.py                   — run after cmake rebuild following file_add.patch
-  patches/source_change.patch             — modifies local source files (e.g. Python scripts)
-  patches/upstream_source_change.patch    — optional: patch applied to the FetchContent source repo
-  patches/upstream_source_var.txt         — cmake variable name that holds the FetchContent source path
-  patches/file_add.patch                  — adds a new .py file + updates CMakeLists.txt
+  patches/source_change_py.patch            — modifies local source files (e.g. Python scripts)
+  patches/source_change_cpp.patch           — patch applied to the FetchContent source repo
+  patches/file_add.patch                    — adds a new .py file + updates CMakeLists.txt
 """
 
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -55,6 +55,8 @@ def _run(
         text=True,
         check=False,
     )
+    print(f"cd {cwd or os.getcwd()}")
+    print(shlex.join(str(c) for c in cmd))
     if result.returncode != 0:
         raise RuntimeError(
             f"Command failed: {' '.join(str(c) for c in cmd)}\n"
@@ -93,24 +95,6 @@ def _cmake_env(build_dir: Path) -> dict[str, str]:
     env = os.environ.copy()
     env.setdefault("CMAKE_FETCHCONTENT_BASE_DIR", str(build_dir / "_fetchcontent"))
     return env
-
-
-def _find_fetchcontent_patch_dir(build_dir: Path, patch_file: Path) -> Path | None:
-    """Return the FetchContent source dir where patch_file applies cleanly, or None."""
-    base = Path(_cmake_env(build_dir)["CMAKE_FETCHCONTENT_BASE_DIR"])
-    for src_dir in sorted(base.glob("*-src")):
-        if not src_dir.is_dir():
-            continue
-        result = subprocess.run(
-            ["git", "apply", "--check", "--whitespace=nowarn", str(patch_file)],
-            cwd=src_dir,
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode == 0:
-            return src_dir
-    return None
-
 
 # ---------------------------------------------------------------------------
 # Build-phase helpers
@@ -212,7 +196,7 @@ class _TestCtx:
 
 
 def _apply_patch(patch_file: Path, repo_root: Path) -> None:
-    _run(["git", "apply", "--whitespace=nowarn", patch_file], cwd=repo_root)
+    _run(["git", "-C", str(repo_root), "apply", "--whitespace=nowarn", str(patch_file)])
 
 
 def _test_source_change(ctx: _TestCtx) -> None:
@@ -222,18 +206,12 @@ def _test_source_change(ctx: _TestCtx) -> None:
     Post-rebuild — C++ changes are visible; editable install files are NOT regenerated
                    (cmake correctly detects them as up-to-date).
     """
-    patch = ctx.patches_dir / "source_change.patch"
-    if not patch.exists():
-        return
-
-    _apply_patch(patch, ctx.source_copy)
+    _apply_patch(ctx.patches_dir / "source_change_py.patch", ctx.source_copy)
 
     # Apply upstream patch (e.g. C++ change) to the FetchContent source repo if present
-    upstream_patch = ctx.patches_dir / "upstream_source_change.patch"
-    if upstream_patch.exists():
-        upstream_src = _find_fetchcontent_patch_dir(ctx.build_dir, upstream_patch)
-        if upstream_src:
-            _run(["git", "apply", "--whitespace=nowarn", upstream_patch], cwd=upstream_src)
+    upstream_patch = ctx.patches_dir / "source_change_cpp.patch"
+    upstream_src = next((ctx.build_dir / "_fetchcontent").rglob("*/.git")).parent  # find the .git dir in the FetchContent source copy
+    _run(["git", "-C", str(upstream_src), "apply", "--whitespace=nowarn", str(upstream_patch)])
 
     # Pre-rebuild: Python change visible, C++ unchanged
     pre_test = ctx.test_scripts / "inplace_file_changed_test.py"
@@ -320,9 +298,9 @@ def test_cmake_pywhl(folder_name: str, tmp_path: Path) -> None:
     shutil.copytree(
         REPO_ROOT,
         source_copy,
-        ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc", "PyWhlConfig.cmake"),
+        ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
     )
-    _run(["bash", source_copy / "build.sh", source_copy / "PyWhlConfig.cmake"], cwd=source_copy)
+    _run(["bash", source_copy / "build.sh", source_copy / "PyWhlConfig.cmake"])
 
     # 1. cmake configure + build
     build_sp, editable, whl_files = _setup_build(source_copy, folder_name, build_dir, build_venv)
