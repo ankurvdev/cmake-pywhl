@@ -8,12 +8,12 @@ Each test folder must provide:
   tests/whl_install_test.py               — functional test run in both venvs
   tests/whl_install_files.txt             — glob patterns expected in runtime-venv site-packages
   tests/inplace_install_patterns.txt      — glob patterns expected in build-venv site-packages
-  tests/inplace_file_changed_test.py               — run right after source_change.patch (pre-rebuild)
-  tests/inplace_file_changed_post_rebuild_test.py  — run after cmake rebuild following source_change.patch
-  tests/inplace_file_add_test.py                   — run after cmake rebuild following file_add.patch
-  patches/source_change_py.patch            — modifies local source files (e.g. Python scripts)
-  patches/source_change_cpp.patch           — patch applied to the FetchContent source repo
-  patches/file_add.patch                    — adds a new .py file + updates CMakeLists.txt
+  tests/inplace_py_edit_test.py   — run right after py_edit.patch (pre-rebuild)
+  tests/inplace_cpp_edit_test.py  — run after cmake rebuild following cpp_edit.patch
+  tests/inplace_py_add_test.py    — run after cmake rebuild following py_add.patch
+  patches/py_edit.patch           — modifies local source files (e.g. Python scripts)
+  patches/cpp_edit.patch          — patch applied to the FetchContent source repo
+  patches/py_add.patch            — adds a new .py file + updates CMakeLists.txt
 """
 
 from __future__ import annotations
@@ -199,22 +199,22 @@ def _apply_patch(patch_file: Path, repo_root: Path) -> None:
     _run(["git", "-C", str(repo_root), "apply", "--whitespace=nowarn", str(patch_file)])
 
 
-def _test_source_change(ctx: _TestCtx) -> None:
-    """Apply source_change.patch, verify two-stage rebuild behaviour.
+def _test_edit(ctx: _TestCtx) -> None:
+    """Apply py_edit.patch + cpp_edit.patch, verify two-stage rebuild behaviour.
 
     Pre-rebuild  — Python changes are visible immediately; C++ is not yet recompiled.
     Post-rebuild — C++ changes are visible; editable install files are NOT regenerated
                    (cmake correctly detects them as up-to-date).
     """
-    _apply_patch(ctx.patches_dir / "source_change_py.patch", ctx.source_copy)
+    _apply_patch(ctx.patches_dir / "py_edit.patch", ctx.source_copy)
 
     # Apply upstream patch (e.g. C++ change) to the FetchContent source repo if present
-    upstream_patch = ctx.patches_dir / "source_change_cpp.patch"
+    upstream_patch = ctx.patches_dir / "cpp_edit.patch"
     upstream_src = next((ctx.build_dir / "_fetchcontent").rglob("*/.git")).parent  # find the .git dir in the FetchContent source copy
     _run(["git", "-C", str(upstream_src), "apply", "--whitespace=nowarn", str(upstream_patch)])
 
     # Pre-rebuild: Python change visible, C++ unchanged
-    pre_test = ctx.test_scripts / "inplace_file_changed_test.py"
+    pre_test = ctx.test_scripts / "inplace_py_edit_test.py"
     if pre_test.exists():
         _run([ctx.build_python, pre_test])
 
@@ -231,14 +231,14 @@ def _test_source_change(ctx: _TestCtx) -> None:
             )
 
     # Post-rebuild: C++ change now visible
-    post_test = ctx.test_scripts / "inplace_file_changed_post_rebuild_test.py"
+    post_test = ctx.test_scripts / "inplace_cpp_edit_test.py"
     if post_test.exists():
         _run([ctx.build_python, post_test])
 
 
-def _test_file_add(ctx: _TestCtx) -> None:
-    """Apply file_add.patch, rebuild, verify editable was regenerated, run add test."""
-    patch = ctx.patches_dir / "file_add.patch"
+def _test_py_add(ctx: _TestCtx) -> None:
+    """Apply py_add.patch, rebuild, verify editable was regenerated, run add test."""
+    patch = ctx.patches_dir / "py_add.patch"
     if not patch.exists():
         return
 
@@ -254,7 +254,7 @@ def _test_file_add(ctx: _TestCtx) -> None:
             "Python file (finder mapping must be updated)",
         )
 
-    add_test = ctx.test_scripts / "inplace_file_add_test.py"
+    add_test = ctx.test_scripts / "inplace_py_add_test.py"
     if add_test.exists():
         _run([ctx.build_python, add_test])
 
@@ -343,10 +343,10 @@ def test_cmake_pywhl(folder_name: str, tmp_path: Path) -> None:
     )
 
     # 6. Source-change patch: visible immediately, no editable regeneration on rebuild
-    _test_source_change(ctx)
+    _test_edit(ctx)
 
     # 7. File-add patch: editable must be regenerated on rebuild
-    _test_file_add(ctx)
+    _test_py_add(ctx)
 
     # 8. Delete build venv + source to prove wheel is self-contained
     shutil.rmtree(build_venv)
