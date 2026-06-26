@@ -54,6 +54,10 @@ jobs:
         with:
           cmake-version: "3.28"
 
+      - name: Set up MSVC (Windows only)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Install Python test dependencies
         run: pip install pytest
 
