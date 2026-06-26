@@ -112,7 +112,7 @@ def _cmake_configure(
 
 
 def _cmake_build(build_dir: Path, target: str | None = None) -> None:
-    cmd: list[str | Path] = ["cmake", "--build", build_dir]
+    cmd: list[str | Path] = ["cmake", "--build", build_dir, "--config", "Release"]
     if target:
         cmd += ["--target", target]
     _run(cmd)

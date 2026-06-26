@@ -42,7 +42,12 @@ function(add_pywhl_module name)
         "EXCLUDE_REGEX=${args_EXCLUDE_REGEX}"
     )
 
-    set(manifest_file "${CMAKE_CURRENT_BINARY_DIR}/${name}.ini")
+    # Prefix with $<CONFIG> so multi-config generators (e.g. Visual Studio)
+    # get a distinct output file per configuration. The content embeds
+    # $<TARGET_FILE:...>, which differs per config; without a per-config
+    # output name cmake errors with "Evaluation file to be written multiple
+    # times with different content".
+    set(manifest_file "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>_${name}.ini")
     file(GENERATE OUTPUT "${manifest_file}" CONTENT "${contents_package_ini}")
 
     set_property(GLOBAL APPEND PROPERTY PYWHL_MODULE_MANIFESTS "${name}:${manifest_file}")
@@ -139,9 +144,13 @@ function(add_pywhl_package targetName)
         set(modmanifest "NOTFOUND")
         set(modtargets "")
         foreach(manifest ${allmanifests})
-            string(REPLACE ":" ";" manifestinfo ${manifest})
-            list(GET manifestinfo 0 pkgname2)
-            list(GET manifestinfo 1 manifestfile)
+            # Split on the FIRST ":" only. The manifest path contains a Windows
+            # drive-letter colon (e.g. C:/...), so splitting on every colon would
+            # truncate the path to the drive letter. (pkgname never has a colon.)
+            string(FIND "${manifest}" ":" _pywhl_colon)
+            string(SUBSTRING "${manifest}" 0 ${_pywhl_colon} pkgname2)
+            math(EXPR _pywhl_after "${_pywhl_colon} + 1")
+            string(SUBSTRING "${manifest}" ${_pywhl_after} -1 manifestfile)
             if ("${modname}" STREQUAL "${pkgname2}")
                 set(modmanifest "${manifestfile}")
             endif()

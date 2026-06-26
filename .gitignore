@@ -12,3 +12,5 @@ CMakeUserPresets.json
 __pycache__
 *.egg-info
 *venv
+settings.json
+.python-version
