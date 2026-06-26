@@ -154,16 +154,18 @@ def _assert_patterns_present(sp: Path, patterns_file: Path, *, label: str) -> li
     patterns = [ln.strip() for ln in patterns_file.read_text().splitlines() if ln.strip() and not ln.startswith("#")]
     for pattern in patterns:
         if not list(sp.glob(str(Path(pattern)))):
-            pytest.fail(f"[{label}] Expected pattern not found in {sp}: {pattern!r}")
+            files = "\n\t".join([f.as_posix() for f in sp.rglob("*") if f.is_file()])
+            pytest.fail(f"[{label}] Expected pattern not found in {sp}: {pattern!r}. Files found: \n\t{files}")
     return patterns
 
 
 def _assert_patterns_absent(sp: Path, patterns: list[str], *, label: str) -> None:
     for pattern in patterns:
         if list(sp.glob(str(Path(pattern)))):
+            files = "\n\t".join([f.as_posix() for f in sp.rglob("*") if f.is_file()])
             pytest.fail(
                 f"[{label}] Pattern {pattern!r} should NOT be present in {sp}"
-                " (editable install redirects to source instead of copying files)",
+                f" (editable install redirects to source instead of copying files). Files found: \n\t{files}",
             )
 
 
