@@ -74,7 +74,8 @@ def _venv_python(venv: Path) -> Path:
 
 def _site_packages(venv: Path) -> Path:
     result = _run(
-        [_venv_python(venv), "-c", "import site; print(site.getsitepackages()[0])"],
+        # Windows returns venv path as the first element of getsitepackages()
+        [_venv_python(venv), "-c", "import site; print(site.getsitepackages()[-1])"],
     )
     return Path(result.stdout.strip())
 
