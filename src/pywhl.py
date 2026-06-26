@@ -210,19 +210,6 @@ class CMakeBuildWheel:
             f'PATH_PLACEHOLDER: str = {name!r} + ".__path_hook__"',
         )
 
-    def get_requires_for_build_sdist(self, _config_settings: dict[str, object] | None = None) -> list[str]:
-        return []  # No dependencies for building with this file as the build backend
-
-    def get_requires_for_build_wheel(self, _config_settings: dict[str, object] | None = None) -> list[str]:
-        return []  # No dependencies for building with this file as the build backend
-
-    def prepare_metadata_for_build_wheel(
-        self,
-        _metadata_directory: str | None = None,
-        _config_settings: dict[str, object] | None = None,
-    ) -> NoReturn:
-        raise CMakeBuildWheelError("prepare_metadata_for_build_wheel Unsupported")
-
     def _recurse_path(
         self,
         mod: ModuleInfo,
@@ -385,24 +372,6 @@ class CMakeBuildWheel:
         record_contents = "\n".join([",".join(record) for record in records])
         yield (dist_info / "RECORD", None, record_contents)
 
-    def prepare_metadata_for_build_editable(
-        self,
-        _metadata_directory: str | None = None,
-        _config_settings: dict[str, object] | None = None,
-    ) -> NoReturn:
-        raise CMakeBuildWheelError("prepare_metadata_for_build_editable Untested")
-
-    def build_editable(
-        self,
-        _out_dir: str,
-        _config_settings: dict[str, object] | None = None,
-        _metadata_directory: str | None = None,
-    ) -> NoReturn:
-        """
-        Generates an editable wheel as per https://peps.python.org/pep-0660/#build-editable
-        """
-        raise CMakeBuildWheelError("build_editable Untested")
-
     def _build_editable_at(self, out_dir: Path, _force_reinstall: bool) -> None:
         for fpath, src_file, contents in self._generate_wheel_content(editable=True):
             fabspath = out_dir / fpath
@@ -414,13 +383,6 @@ class CMakeBuildWheel:
                     _ = fabspath.write_text(contents, encoding="utf-8")
             else:
                 raise ValueError(f"Neither file nor contents found for {fpath.as_posix()}")
-
-    def build_sdist(
-        self,
-        _out_dir: str,
-        _config_settings: dict[str, object] | None = None,
-    ) -> str:
-        raise CMakeBuildWheelError("Python source distribution ('sdist') Unsupported")
 
     def build_wheel(
         self,
@@ -488,61 +450,6 @@ class CMakeBuildWheel:
                 )
             if args.dep_file:
                 instance.generate_depfile(args.dep_file, whl_file)
-
-
-# The following functions are required by
-# PEP 517 A build-system independent format for source trees
-# https://peps.python.org/pep-0517/#build-backend-api
-# The current file can be used as a build backend from a pyproject.toml file
-
-
-def get_requires_for_build_wheel(
-    config_settings: dict[str, object] | None = None,
-) -> list[str]:
-    return CMakeBuildWheel.instance().get_requires_for_build_wheel(config_settings)
-
-
-def get_requires_for_build_sdist(
-    config_settings: dict[str, object] | None = None,
-) -> list[str]:
-    return CMakeBuildWheel.instance().get_requires_for_build_sdist(config_settings)
-
-
-def build_wheel(
-    wheel_directory: str,
-    config_settings: dict[str, object] | None = None,
-    metadata_directory: str | None = None,
-) -> str:
-    return CMakeBuildWheel.instance().build_wheel(Path(wheel_directory), config_settings, metadata_directory).as_posix()
-
-
-def build_sdist(
-    sdist_directory: str,
-    config_settings: dict[str, object] | None = None,
-) -> str:
-    return CMakeBuildWheel.instance().build_sdist(sdist_directory, config_settings)
-
-
-def prepare_metadata_for_build_wheel(
-    metadata_directory: str,
-    config_settings: dict[str, object] | None = None,
-) -> str:
-    return CMakeBuildWheel.instance().prepare_metadata_for_build_wheel(metadata_directory, config_settings)
-
-
-def build_editable(
-    wheel_directory: str,
-    config_settings: dict[str, object] | None = None,
-    metadata_directory: str | None = None,
-) -> str:
-    return CMakeBuildWheel.instance().build_editable(wheel_directory, config_settings, metadata_directory)
-
-
-def prepare_metadata_for_build_editable(
-    metadata_directory: str,
-    config_settings: dict[str, object] | None = None,
-) -> str:
-    return CMakeBuildWheel.instance().prepare_metadata_for_build_editable(metadata_directory, config_settings)
 
 
 if __name__ == "__main__":
