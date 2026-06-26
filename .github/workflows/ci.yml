@@ -66,14 +66,10 @@ jobs:
             fetchcontent-${{ runner.os }}-
 
       - name: Build PyWhlConfig.cmake
-        shell: bash
-        run: bash build.sh "$RUNNER_TEMP/PyWhlConfig.cmake"
+        run: python build.py "${{ runner.temp }}/PyWhlConfig.cmake"
 
       - name: Verify PyWhlConfig.cmake was produced
-        shell: bash
-        run: |
-          test -f "$RUNNER_TEMP/PyWhlConfig.cmake"
-          echo "PyWhlConfig.cmake size: $(wc -c < "$RUNNER_TEMP/PyWhlConfig.cmake") bytes"
+        run: python -c "import os, sys; p='${{ runner.temp }}/PyWhlConfig.cmake'; sys.exit(0) if os.path.isfile(p) and print('PyWhlConfig.cmake size:', os.path.getsize(p), 'bytes') is None else sys.exit(1)"
 
       - name: Run test suite
         env:
@@ -108,7 +104,7 @@ jobs:
           python-version: "3.12"
 
       - name: Build PyWhlConfig.cmake
-        run: ./build.sh "$RUNNER_TEMP/PyWhlConfig.cmake"
+        run: python build.py "${{ runner.temp }}/PyWhlConfig.cmake"
 
       - name: Extract tag name
         id: tag
