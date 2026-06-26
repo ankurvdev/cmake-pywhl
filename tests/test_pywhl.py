@@ -287,7 +287,7 @@ def test_cmake_pywhl(folder_name: str, tmp_path: Path) -> None:
         ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
     )
     _log("building PyWhlConfig.cmake")
-    _run(["bash", source_copy / "build.sh", source_copy / "PyWhlConfig.cmake"])
+    _run([sys.executable, source_copy / "build.py", source_copy / "PyWhlConfig.cmake"])
 
     # 1. cmake configure + build
     _log("cmake configure + build")
