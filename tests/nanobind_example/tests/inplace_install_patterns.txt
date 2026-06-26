@@ -1,3 +1,9 @@
 # Glob patterns expected in the build-venv site-packages after editable install.
 __editable__nanobind_example*.pth
 __editable__nanobind_example_finder.py
+nanobind_example-*.dist-info/METADATA
+nanobind_example-*.dist-info/LICENSE
+nanobind_example-*.dist-info/RECORD
+nanobind_example-*.dist-info/WHEEL
+nanobind_example-*.dist-info/direct_url.json
+nanobind_example-*.dist-info/top_level.txt

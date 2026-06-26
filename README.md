@@ -11,28 +11,7 @@ A CMake module for building Python wheels directly from CMake projects. It integ
 ### 2. Integrate into your CMakeLists.txt
 
 ```cmake
-cmake_minimum_required(VERSION 3.20)
-project(myproject VERSION 1.0.0)
-
-set(PYWHL_VERSION "${PROJECT_VERSION}")
-
-# Add the directory containing PyWhlConfig.cmake to the module path
-list(APPEND CMAKE_MODULE_PATH "/path/to/pywhl")
-include(PyWhlConfig)
-
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module)
-string(CONCAT PYTHON_VERSION_NO_DOTS
-    "${Python3_VERSION_MAJOR}" "${Python3_VERSION_MINOR}")
-
-# Build your extension
-find_package(nanobind CONFIG REQUIRED)
 nanobind_add_module(_myext src/_myext.cpp)
-
-# Copy extension into source package dir (enables editable installs)
-add_custom_command(TARGET _myext POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_FILE:_myext> "${CMAKE_CURRENT_SOURCE_DIR}/mypackage/"
-)
 
 # Declare a pywhl module (maps to a top-level Python package)
 add_pywhl_module(mypackage

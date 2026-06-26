@@ -31,14 +31,15 @@ jobs:
   # Build PyWhlConfig.cmake, compile the nanobind test extension, run tests
   # ---------------------------------------------------------------------------
   test:
-    name: Test (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
     needs: lint
 
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13"]
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
@@ -48,39 +49,20 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install CMake
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: "3.28"
 
       - name: Install Python test dependencies
         run: pip install pytest
 
-      - name: Cache FetchContent downloads
-        uses: actions/cache@v4
-        with:
-          path: /tmp/fetchcontent-cache
-          key: fetchcontent-${{ runner.os }}-${{ hashFiles('tests/nanobind_example/CMakeLists.txt') }}
-          restore-keys: |
-            fetchcontent-${{ runner.os }}-
-
       - name: Build PyWhlConfig.cmake
-        run: ./build.sh "$RUNNER_TEMP/PyWhlConfig.cmake"
-
-      - name: Verify PyWhlConfig.cmake was produced
-        run: |
-          test -f "$RUNNER_TEMP/PyWhlConfig.cmake"
-          echo "PyWhlConfig.cmake size: $(wc -c < "$RUNNER_TEMP/PyWhlConfig.cmake") bytes"
+        run: python build.py "${{ runner.temp }}/PyWhlConfig.cmake"
 
       - name: Run test suite
-        env:
-          CMAKE_FETCHCONTENT_BASE_DIR: /tmp/fetchcontent-cache
         run: pytest tests/ -v --tb=short
 
       - name: Upload PyWhlConfig.cmake artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PyWhlConfig-py${{ matrix.python-version }}
+          name: PyWhlConfig-${{ matrix.os }}-py${{ matrix.python-version }}
           path: ${{ runner.temp }}/PyWhlConfig.cmake
           if-no-files-found: error
 
@@ -105,7 +87,7 @@ jobs:
           python-version: "3.12"
 
       - name: Build PyWhlConfig.cmake
-        run: ./build.sh "$RUNNER_TEMP/PyWhlConfig.cmake"
+        run: python build.py "${{ runner.temp }}/PyWhlConfig.cmake"
 
       - name: Extract tag name
         id: tag

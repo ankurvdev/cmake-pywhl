@@ -2,5 +2,4 @@
 # These must NOT be present directly in the build-venv site-packages (editable redirects instead).
 nanobind_example/__init__.py
 nanobind_example/example.py
-nanobind_example-*.dist-info/METADATA
 nanobind_example/nanobind_example_ext*
