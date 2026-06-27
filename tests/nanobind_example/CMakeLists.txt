@@ -5,8 +5,9 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module)
 
 execute_process(
     COMMAND "${Python3_EXECUTABLE}" -m pip install --upgrade pip nanobind
-    COMMAND_ERROR_IS_FATAL ANY
 )
+execute_process(COMMAND "uv pip install nanobind")
+
 execute_process(
     COMMAND "${Python3_EXECUTABLE}" -c "import nanobind; print(nanobind.cmake_dir())"
     OUTPUT_VARIABLE NANOBIND_CMAKE_DIR
@@ -39,8 +40,12 @@ find_package(PyWhl CONFIG REQUIRED)
 add_pywhl_module(nanobind_example
     TARGETS nanobind_example_ext
     SCRIPTS
+        # Folders
         ${nanobind_example_upstream_SOURCE_DIR}/src/nanobind_example
-        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/example.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/pyext@pyext
+        # Files
+        ${CMAKE_CURRENT_SOURCE_DIR}/example.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/__init__.py@scripts
 )
 
 add_pywhl_package(nanobind_example

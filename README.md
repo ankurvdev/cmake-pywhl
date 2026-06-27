@@ -16,7 +16,14 @@ nanobind_add_module(_myext src/_myext.cpp)
 # Declare a pywhl module (maps to a top-level Python package)
 add_pywhl_module(mypackage
     TARGETS _myext
-    SCRIPTS mypackage          # directory or individual .py files
+    SCRIPTS
+        # Can be individual files or folders
+        # Rules for files
+        folder1/file1.py        # -> file1.py
+        folder4/file1.py@ext1   # -> ext1/file1.py
+        # Rules for folders
+        folder2                 # folder2/subfolder1/file1.py -> subfolder/file1.py
+        folder3@ext1            # folder3/subfolder1/file1.py -> ext1/subfolder1/file1.py
 )
 
 # Create wheel and editable-install targets
