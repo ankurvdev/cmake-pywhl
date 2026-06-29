@@ -9,10 +9,8 @@ import argparse
 import configparser
 import hashlib
 import logging
-from multiprocessing import Value
 import os
 import platform
-import pprint
 import re
 import shutil
 import site
@@ -157,6 +155,23 @@ class CMakeBuildWheel:
         if self.build_info.entry_points_file:
             self.dependencies.add(self.build_info.entry_points_file)
 
+    def _data_path_mapping(
+        self,
+        mod: ModuleInfo,
+        name: Path | None,
+        data_path: Path,
+    ) -> Generator[tuple[Path, Path], None, None]:
+        data_root = mod.src_root / data_path
+        if not data_root.exists():
+            raise CMakeBuildWheelError(f"Data path {data_root.as_posix()} not found")
+        if data_root.is_dir():
+            extname = f"{mod.name}/{name}" if name else mod.name
+            for subpath in data_root.rglob(pattern="*"):
+                yield (subpath, Path(extname) / subpath.relative_to(data_root).parent / subpath.name)
+        else:
+            extname: str = f"{mod.name}/{name}" if name else mod.name
+            yield (data_root, Path(extname) / data_root.name)
+
     def _script_path_mapping(
         self,
         mod: ModuleInfo,
@@ -279,12 +294,11 @@ class CMakeBuildWheel:
     def _foreach_wheel_data(self) -> Generator[tuple[Path, Path], None, None]:
         for mod in self.build_info.modules:
             for fpath, dest in mod.data.items():
-                log.info(f"Adding package {mod.name} data {fpath.as_posix()} => {dest.as_posix()}")
                 # There's could be too many files in data directory.
-                # Skip adding them to dependency file list to avoid needles blaoting
+                # Skip adding them to dependency file list to avoid needles bloating
                 # Just add the root directory
                 self.dependencies.add(fpath)
-                yield from self._recurse_path(mod, mod.src_root, fpath, dest_root / dest)
+                yield from self._data_path_mapping(mod, dest, fpath)
 
     def _foreach_wheel_file_item(self) -> Generator[tuple[Path, Path], None, None]:
         for mod in self.build_info.modules:

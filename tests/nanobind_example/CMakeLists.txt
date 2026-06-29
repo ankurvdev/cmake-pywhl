@@ -37,6 +37,11 @@ endif()
 add_subdirectory(${nanobind_example_upstream_SOURCE_DIR} nanobind_example)
 
 find_package(PyWhl CONFIG REQUIRED)
+file(GENERATE 
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/version_info.txt
+        INPUT  ${CMAKE_CURRENT_SOURCE_DIR}/version_info.txt.in
+)
+
 add_pywhl_module(nanobind_example
     TARGETS nanobind_example_ext
     SCRIPTS
@@ -46,6 +51,13 @@ add_pywhl_module(nanobind_example
         # Files
         ${CMAKE_CURRENT_SOURCE_DIR}/example.py
         ${CMAKE_CURRENT_SOURCE_DIR}/scripts/__init__.py@scripts
+    DATA
+        # Folders
+        ${CMAKE_CURRENT_SOURCE_DIR}/config
+        ${CMAKE_CURRENT_SOURCE_DIR}/pyext_config@pyext
+        # Files
+        ${CMAKE_CURRENT_BINARY_DIR}/version_info.txt
+        ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt@scripts
 )
 
 add_pywhl_package(nanobind_example

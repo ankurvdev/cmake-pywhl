@@ -1,0 +1,2 @@
+version=${PROJECT_VERSION}
+shlibname=$<TARGET_FILE_NAME:nanobind_example_ext>
