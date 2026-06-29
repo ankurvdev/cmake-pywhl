@@ -477,8 +477,9 @@ class CMakeBuildWheel:
 
     def install(self, editable: bool, force_reinstall: bool = False) -> None:
         if editable:
-            # The first one in site.getsitemodules() is the directory for the venv if we are in a venv
-            site_package_path = Path(site.getsitepackages()[0])
+            # The first one is the directory for the venv if we are in a venv
+            # Windows returns venv path as the first element
+            site_package_path = Path(next(p for p in site.getsitepackages() if Path(p).name == "site-packages"))
             self._build_editable_at(Path(site_package_path), force_reinstall)
         else:
             raise CMakeBuildWheelError("Python install ('install') Unsupported")
