@@ -1,5 +1,5 @@
---- a/tests/nanobind_example/scripts/example.py
-+++ b/tests/nanobind_example/scripts/example.py
+--- a/tests/nanobind_example/example.py
++++ b/tests/nanobind_example/example.py
 @@ -1,2 +1,2 @@
  def greeting() -> str:
 -    return "hello"

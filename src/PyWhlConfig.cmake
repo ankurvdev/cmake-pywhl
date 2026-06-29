@@ -11,9 +11,9 @@ define_property(
     FULL_DOCS "This property is used to track the target dependencies of PYWHL packages")
 
 function(add_pywhl_module name)
-    cmake_parse_arguments("args" "" "EXCLUDE_REGEX" "DATA_FILES;SCRIPTS;TARGETS" ${ARGN})
+    cmake_parse_arguments("args" "" "EXCLUDE_REGEX" "DATA;SCRIPTS;TARGETS" ${ARGN})
     
-    set(data_files ${args_DATA_FILES})
+    set(data_files ${args_DATA})
     set(target_libs)
     set(target_bins)
 
