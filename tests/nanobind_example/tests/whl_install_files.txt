@@ -1,5 +1,12 @@
 # Files/glob patterns expected in site-packages after wheel install.
 # These must NOT be present directly in the build-venv site-packages (editable redirects instead).
-nanobind_example/__init__.py
 nanobind_example/example.py
 nanobind_example/nanobind_example_ext*
+nanobind_example/version_info.txt
+nanobind_example/info1.txt
+nanobind_example/info2.txt
+nanobind_example/pyext/__init__.py
+nanobind_example/pyext/info1.txt
+nanobind_example/pyext/info1.txt
+nanobind_example/scripts/__init__.py
+nanobind_example/scripts/CMakeLists.txt

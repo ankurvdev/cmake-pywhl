@@ -35,8 +35,8 @@ class ModuleInfo:
         self.file: Path = Path()
         self.name: str = ""
         self.src_root: Path = Path()
-        self.data: dict[Path, Path] = {}
-        self.scripts: dict[Path, Path] = {}
+        self.data: dict[Path, Path | None] = {}
+        self.scripts: dict[Path, Path | None] = {}
         self.targets: list[str] = []
         self.target_libs: list[Path] = []
         self.target_bins: list[Path] = []
@@ -89,8 +89,10 @@ def parse_manifest(manifest: Path) -> BuildInfo:
     def splitstr(paths: str) -> list[str]:
         return list(filter(len, filter(None, paths.split(";"))))
 
-    def create_source_dest_paths(paths: list[str]) -> dict[Path, Path]:
-        return {Path(src): Path(dst or Path(src).name) for path in paths for src, dst in [([*path.split("@"), ""])[:2]]}
+    def create_source_dest_paths(paths: list[str]) -> dict[Path, Path | None]:
+        return {
+            Path(src): (Path(dst) if dst else None) for path in paths for src, dst in [([*path.split("@"), ""])[:2]]
+        }
 
     def parse_manifest(manifest: Path) -> ModuleInfo:
         modconfig = read_config(manifest)
@@ -99,7 +101,7 @@ def parse_manifest(manifest: Path) -> BuildInfo:
         modinfo.name = modconfig["name"]
         modinfo.src_root = Path(modconfig["src_root"])
         modinfo.data = create_source_dest_paths(splitstr(modconfig["data"]))
-        modinfo.scripts = create_source_dest_paths(splitstr(modconfig["scripts"]))
+        modinfo.scripts = create_source_dest_paths(splitstr(paths=modconfig["scripts"]))
         modinfo.target_libs = splitpaths(modconfig["target_libs"])
         modinfo.target_bins = splitpaths(modconfig["target_bins"])
         if modconfig.get("entry_points", "") != "":
@@ -153,30 +155,58 @@ class CMakeBuildWheel:
         if self.build_info.entry_points_file:
             self.dependencies.add(self.build_info.entry_points_file)
 
-    def _script_path_mapping(self, mod: ModuleInfo, script_path: Path) -> dict[str, str]:
+    def _data_path_mapping(
+        self,
+        mod: ModuleInfo,
+        name: Path | None,
+        data_path: Path,
+    ) -> Generator[tuple[Path, Path], None, None]:
+        data_root = mod.src_root / data_path
+        if not data_root.exists():
+            raise CMakeBuildWheelError(f"Data path {data_root.as_posix()} not found")
+        if data_root.is_dir():
+            extname = f"{mod.name}/{name}" if name else mod.name
+            for subpath in data_root.rglob(pattern="*"):
+                yield (subpath, Path(extname) / subpath.relative_to(data_root).parent / subpath.name)
+        else:
+            extname: str = f"{mod.name}/{name}" if name else mod.name
+            yield (data_root, Path(extname) / data_root.name)
+
+    def _script_path_mapping(
+        self,
+        mod: ModuleInfo,
+        name: Path | None,
+        script_path: Path,
+    ) -> Generator[tuple[Path, Path], None, None]:
         script_root = mod.src_root / script_path
         if not script_root.exists():
             raise CMakeBuildWheelError(f"Script {script_root.as_posix()} not found")
-        mapping: dict[str, str] = {}
         if script_root.is_dir():
-            if (script_root / "__init__.py").exists():
-                mapping[mod.name] = script_root.as_posix()
-            else:
-                for subpath in script_root.rglob("*.py"):
-                    mapping[f"{mod.name}.{subpath.stem}"] = subpath.as_posix()
+            extname = f"{mod.name}/{name}" if name else mod.name
+            for subpath in script_root.rglob(pattern="*.py"):
+                yield (subpath, Path(extname) / subpath.relative_to(script_root).parent / subpath.name)
         elif script_root.suffix == ".py":
-            mapping[f"{mod.name}.{script_root.stem}"] = script_root.as_posix()
-            if script_path.name == "__init__.py":
-                mapping[mod.name] = script_path.absolute().as_posix()
-        return mapping
+            extname: str = f"{mod.name}/{name}" if name else mod.name
+            yield (script_root, Path(extname) / script_root.name)
+        else:
+            raise CMakeBuildWheelError(f"Spec {script_root} is neither a dir or a .py file")
 
     def _build_editable_mapping(self) -> dict[str, str]:
         if not self.build_info.modules:
             raise ValueError("Empty self.build_info.modules")
-        mapping: dict[str, str] = {}
+
+        def whlpath_to_extmap(whlpath: Path) -> str:
+            if whlpath.is_absolute():
+                raise ValueError(f"whlpath {whlpath.as_posix()} is absolute")
+            return (
+                ".".join(whlpath.parent.parts)
+                if whlpath.name == "__init__.py"
+                else ".".join([*whlpath.parent.parts, whlpath.stem])
+            )
+
+        mapping = {whlpath_to_extmap(whlpath): fpath.as_posix() for fpath, whlpath in self._foreach_wheel_script()}
+
         for mod in self.build_info.modules:
-            for script_path in mod.scripts:
-                mapping.update(self._script_path_mapping(mod, script_path))
             for target_lib in mod.target_libs:
                 for libname in [
                     target_lib.stem,
@@ -243,23 +273,24 @@ class CMakeBuildWheel:
             if add_to_dependencies:
                 self.dependencies.add(fpath)
 
+    def _foreach_wheel_script(self) -> Generator[tuple[Path, Path], None, None]:
+        for mod in self.build_info.modules:
+            for fpath, dest in mod.scripts.items():
+                yield from self._script_path_mapping(mod, dest, fpath)
+
+    def _foreach_wheel_data(self) -> Generator[tuple[Path, Path], None, None]:
+        for mod in self.build_info.modules:
+            for fpath, dest in mod.data.items():
+                # There's could be too many files in data directory.
+                # Skip adding them to dependency file list to avoid needles bloating
+                # Just add the root directory
+                self.dependencies.add(fpath)
+                yield from self._data_path_mapping(mod, dest, fpath)
+
     def _foreach_wheel_file_item(self) -> Generator[tuple[Path, Path], None, None]:
         for mod in self.build_info.modules:
             log.info(f"Adding package {mod.name}")
             dest_root = Path(f"{mod.name}")
-            for fpath, dest in mod.data.items():
-                log.info(f"Adding package {mod.name} data {fpath.as_posix()} => {dest.as_posix()}")
-                # There's could be too many files in data directory.
-                # Skip adding them to dependency file list to avoid needles blaoting
-                # Just add the root directory
-                self.dependencies.add(fpath)
-                for fpath1, dest1 in self._recurse_path(mod, mod.src_root, fpath, dest_root / dest):
-                    yield fpath1, dest1
-            for fpath, dest in mod.scripts.items():
-                dest_path = dest_root / dest if dest_root.name != dest.name else dest_root
-                log.info(f"Adding package {mod.name} script {fpath.as_posix()} => {dest_path.as_posix()}")
-                for fpath1, dest1 in self._recurse_path(mod, mod.src_root, fpath, dest_path, add_to_dependencies=True):
-                    yield fpath1, dest1
             for fpath in mod.target_libs:
                 log.info(f"Adding package {mod.name} target_lib {fpath.as_posix()}")
                 self.dependencies.add(fpath)
@@ -270,6 +301,8 @@ class CMakeBuildWheel:
                 self.dependencies.add(fpath)
                 for fpath1, dest1 in self._recurse_path(mod, mod.src_root, fpath, dest_root / fpath.name):
                     yield fpath1, dest1
+        yield from self._foreach_wheel_data()
+        yield from self._foreach_wheel_script()
 
     def _generate_wheel_content(
         self,
@@ -406,8 +439,9 @@ class CMakeBuildWheel:
 
     def install(self, editable: bool, force_reinstall: bool = False) -> None:
         if editable:
-            # The first one in site.getsitemodules() is the directory for the venv if we are in a venv
-            site_package_path = Path(site.getsitepackages()[0])
+            # The first one is the directory for the venv if we are in a venv
+            # Windows returns venv path as the first element
+            site_package_path = Path(next(p for p in site.getsitepackages() if Path(p).name == "site-packages"))
             self._build_editable_at(Path(site_package_path), force_reinstall)
         else:
             raise CMakeBuildWheelError("Python install ('install') Unsupported")
