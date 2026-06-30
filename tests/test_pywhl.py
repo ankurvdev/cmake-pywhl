@@ -1,5 +1,5 @@
 """
-Integration test for cmake-pywhl.
+Integration test for cmake_pywhl.
 
 Each subdirectory of tests/ that contains a CMakeLists.txt is a test case.
 Each test folder must provide:

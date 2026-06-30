@@ -55,3 +55,25 @@ norecursedirs = ["nanobind_example"]
 "tests/**/scripts/*.py" = ["INP001"]
 # Per-folder test helpers are run as standalone scripts, not part of a package
 "tests/**/tests/*.py" = ["INP001", "S101", "PLR2004"]
+
+[tool.pyright]
+reportImplicitStringConcatenation = false
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name="cmake_pywhl"
+version="0.0.1"
+description = "A short description of your project"
+readme = "README.md"
+requires-python = ">=3.12"
+
+[tool.setuptools]
+package-dir = { "cmake_pywhl" = "src" }
+include-package-data = true
+
+[tool.setuptools.package-data]
+"*" = ["*.cmake"]
+
