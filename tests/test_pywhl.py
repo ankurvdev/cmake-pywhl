@@ -5,6 +5,7 @@ Each subdirectory of tests/ that contains a CMakeLists.txt is a test case.
 Each test folder must provide:
 
   CMakeLists.txt                          — cmake project with an `all_whl` target
+  pyproject.toml                          — project build config
   tests/whl_install_test.py               — functional test run in both venvs
   tests/whl_install_files.txt             — glob patterns expected in runtime-venv site-packages
   tests/inplace_install_patterns.txt      — glob patterns expected in build-venv site-packages
@@ -29,11 +30,7 @@ TESTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TESTS_DIR.parent
 
 
-# ---------------------------------------------------------------------------
 # Low-level helpers
-# ---------------------------------------------------------------------------
-
-
 def _run(
     cmd: list[str | Path],
     *,
@@ -89,15 +86,20 @@ def _editable_files(sp: Path) -> list[Path]:
     return list(sp.glob("__editable__*.pth")) + list(sp.glob("__editable__*_finder.py"))
 
 
+_UV = shutil.which("uv")
+requires_uv = pytest.mark.skipif(_UV is None, reason="uv is required for the build-backend tests")
+
+
+def _uv_pip_install(python: Path, args: list[str | Path]) -> subprocess.CompletedProcess[str]:
+    """Run `uv pip install --python <python> <args...>` (raises on non-zero exit)."""
+    return _run([str(_UV), "pip", "install", "--python", python, *args])
+
+
 def _mtimes(files: list[Path]) -> dict[Path, float]:
     return {f: f.stat().st_mtime for f in files if f.exists()}
 
 
-# ---------------------------------------------------------------------------
 # Build-phase helpers
-# ---------------------------------------------------------------------------
-
-
 def _cmake_configure(
     source_dir: Path,
     build_dir: Path,
@@ -148,11 +150,7 @@ def _setup_build(
     return build_sp, editable, whls
 
 
-# ---------------------------------------------------------------------------
 # Pattern-check helpers
-# ---------------------------------------------------------------------------
-
-
 def _assert_patterns_present(sp: Path, patterns_file: Path, *, label: str) -> list[str]:
     """Check every pattern in patterns_file exists under sp. Returns the patterns."""
     if not patterns_file.exists():
@@ -175,11 +173,7 @@ def _assert_patterns_absent(sp: Path, patterns: list[str], *, label: str) -> Non
             )
 
 
-# ---------------------------------------------------------------------------
 # Patch-phase helpers
-# ---------------------------------------------------------------------------
-
-
 @dataclass
 class _TestCtx:
     source_copy: Path
@@ -254,11 +248,7 @@ def _test_py_add(ctx: _TestCtx) -> None:
         _run([ctx.build_python, add_test])
 
 
-# ---------------------------------------------------------------------------
 # Parametrize over every folder that has a CMakeLists.txt
-# ---------------------------------------------------------------------------
-
-
 def _test_folder_names() -> list[str]:
     return [
         d.name
@@ -272,11 +262,17 @@ def folder_name(request: pytest.FixtureRequest) -> str:
     return request.param  # type: ignore[return-value]
 
 
-# ---------------------------------------------------------------------------
+def _backend_folder_names() -> list[str]:
+    """Test folders that also ship a pyproject.toml (i.e. build via the PEP 517 backend)."""
+    return [name for name in _test_folder_names() if (TESTS_DIR / name / "pyproject.toml").exists()]
+
+
+@pytest.fixture(params=_backend_folder_names())
+def backend_folder_name(request: pytest.FixtureRequest) -> str:
+    return request.param  # type: ignore[return-value]
+
+
 # Main integration test
-# ---------------------------------------------------------------------------
-
-
 def test_cmake_pywhl(folder_name: str, tmp_path: Path) -> None:
     folder = TESTS_DIR / folder_name
     test_scripts = folder / "tests"
@@ -364,3 +360,74 @@ def test_cmake_pywhl(folder_name: str, tmp_path: Path) -> None:
     _log("functional test — runtime venv (wheel install)")
     if whl_install_test.exists():
         _run([runtime_python, whl_install_test])
+
+
+# PEP 517 build-backend tests (cmake_pywhl.build)
+def _prepare_backend_env(tmp_path: Path) -> tuple[Path, Path]:
+    """Copy the repo, create a venv, and install the cmake_pywhl build backend into it.
+
+    The backend must live in the target venv so that `uv pip install --no-build-isolation`
+    can import `cmake_pywhl.build` when building a test folder's wheel.
+
+    Returns (source_copy, venv).
+    """
+    source_copy = tmp_path / "source"
+    venv = tmp_path / "venv"
+    shutil.copytree(
+        REPO_ROOT,
+        source_copy,
+        ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+    )
+    _make_venv(venv)
+    _uv_pip_install(_venv_python(venv), [source_copy])  # provides cmake_pywhl.build
+    return source_copy, venv
+
+
+@requires_uv
+def test_build_backend(backend_folder_name: str, tmp_path: Path) -> None:
+    """`uv pip install tests/<folder>` builds + installs a wheel via cmake_pywhl.build.
+    """
+    source_copy, venv = _prepare_backend_env(tmp_path)
+    python = _venv_python(venv)
+    test_scripts = TESTS_DIR / backend_folder_name / "tests"
+    folder_copy = source_copy / "tests" / backend_folder_name
+
+    _log("building wheel via build backend (uv pip install)")
+    _uv_pip_install(python, ["--no-build-isolation", folder_copy])
+
+    backend_sp = _site_packages(venv)
+    _assert_patterns_present(
+        backend_sp,
+        test_scripts / "whl_install_files.txt",
+        label="backend-venv",
+    )
+
+    _log("functional test — backend venv (wheel install)")
+    whl_install_test = test_scripts / "whl_install_test.py"
+    if whl_install_test.exists():
+        _run([python, whl_install_test])
+
+
+@requires_uv
+def test_build_backend_editable_unsupported(backend_folder_name: str, tmp_path: Path) -> None:
+    """Editable installs via the backend must fail, pointing the user at the cmake module.
+    """
+    source_copy, venv = _prepare_backend_env(tmp_path)
+    python = _venv_python(venv)
+    folder_copy = source_copy / "tests" / backend_folder_name
+
+    _log("editable install via build backend (expected to fail)")
+    result = subprocess.run(
+        [str(_UV), "pip", "install", "--python", str(python), "--no-build-isolation", "-e", str(folder_copy)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    combined = result.stdout + result.stderr
+
+    if result.returncode == 0:
+        pytest.fail(f"Editable install unexpectedly succeeded:\n{combined}")
+    if "Editable builds not supported by the build backend" not in combined:
+        pytest.fail(f"Editable failure did not report the expected message:\n{combined}")
+    if "PyWhlConfig.cmake" not in combined:
+        pytest.fail(f"Editable failure did not point the user at PyWhlConfig.cmake:\n{combined}")
