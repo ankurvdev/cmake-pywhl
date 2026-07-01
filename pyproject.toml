@@ -47,6 +47,8 @@ ignore = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 norecursedirs = ["nanobind_example"]
+# Fail (don't silently skip) if no tests found
+empty_parameter_set_mark = "fail_at_collect"
 
 [tool.ruff.per-file-ignores]
 # Test scripts use assert for pytest assertions

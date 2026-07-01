@@ -58,6 +58,8 @@ def build_wheel(
             shutil.which("cmake") or "cmake",
             "--build",
             wheel_directory,
+            "--config",
+            "Release", #Otherwise on windows it'll default to debug
             "--target",
             "all_whl",
         ],

@@ -146,7 +146,7 @@ def _setup_build(
 
     build_sp = _site_packages(build_venv)
     editable = _editable_files(build_sp)
-    whls = list(build_dir.rglob("*.whl"))
+    whls = [whl for whl in build_dir.rglob("*.whl") if ".editable" not in whl.name]
     return build_sp, editable, whls
 
 
@@ -392,18 +392,21 @@ def test_build_backend(backend_folder_name: str, tmp_path: Path) -> None:
     test_scripts = TESTS_DIR / backend_folder_name / "tests"
     folder_copy = source_copy / "tests" / backend_folder_name
 
+    patterns_file = test_scripts / "whl_install_files.txt"
+    whl_install_test = test_scripts / "whl_install_test.py"
+    if not patterns_file.exists() and not whl_install_test.exists():
+        pytest.fail(
+            f"{backend_folder_name!r} provides no way to verify the backend build: expected "
+            f"{patterns_file.name} and/or {whl_install_test.name} under {test_scripts}",
+        )
+
     _log("building wheel via build backend (uv pip install)")
     _uv_pip_install(python, ["--no-build-isolation", folder_copy])
 
     backend_sp = _site_packages(venv)
-    _assert_patterns_present(
-        backend_sp,
-        test_scripts / "whl_install_files.txt",
-        label="backend-venv",
-    )
+    _assert_patterns_present(backend_sp, patterns_file, label="backend-venv")
 
     _log("functional test — backend venv (wheel install)")
-    whl_install_test = test_scripts / "whl_install_test.py"
     if whl_install_test.exists():
         _run([python, whl_install_test])
 
