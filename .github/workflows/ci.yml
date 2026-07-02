@@ -69,13 +69,14 @@ jobs:
           VERSION="${GITHUB_REF#refs/tags/v}"
           echo "Building cmake_pywhl version ${VERSION}"
           sed -i -E "s/^version[[:space:]]*=.*/version = \"${VERSION}\"/" pyproject.toml
-      - name: Build sdist + wheel
-        run: uv build -o dist
-      - name: Upload wheel + sdist artifact
+      - name: Build wheel
+        run: uv build --wheel -o dist
+      - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cmake-pywhl-dist
-          path: dist/
+          # Downloads from the run summary as cmake_pywhl-wheel.zip, containing the .whl.
+          name: cmake_pywhl-wheel
+          path: dist/*.whl
           if-no-files-found: error
 
   release:
@@ -92,10 +93,10 @@ jobs:
           python-version: "3.12"
       - name: Build PyWhlConfig.cmake
         run: python build.py "${{ runner.temp }}/PyWhlConfig.cmake"
-      - name: Download cmake_pywhl wheel + sdist
+      - name: Download cmake_pywhl wheel
         uses: actions/download-artifact@v4
         with:
-          name: cmake-pywhl-dist
+          name: cmake_pywhl-wheel
           path: dist/
       - name: Extract tag name
         id: tag
@@ -122,10 +123,10 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - name: Download cmake_pywhl wheel + sdist
+      - name: Download cmake_pywhl wheel
         uses: actions/download-artifact@v4
         with:
-          name: cmake-pywhl-dist
+          name: cmake_pywhl-wheel
           path: dist/
 
       - name: Publish to PyPI
