@@ -1,4 +1,4 @@
-# cmake-pywhl
+# cmake_pywhl
 
 A CMake module for building Python wheels directly from CMake projects. It integrates compiled C/C++ extensions (via nanobind, pybind11, ctypes, etc.) and pure Python source files into PEP 427-compliant wheel archives, with full support for PEP 660 editable installs.
 
