@@ -147,8 +147,9 @@ function(add_pywhl_package targetName)
     message(FATAL_ERROR "License file not found: ${args_LICENSE_FILE}")
   endif()
 
-  if(NOT DEFINED args_METADATA_FILE AND EXISTS
-                                        "${CMAKE_CURRENT_SOURCE_DIR}/METADATA")
+  if((NOT DEFINED args_METADATA_FILE) AND
+    (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/METADATA") AND
+    (NOT IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/METADATA"))
     set(args_METADATA_FILE "${CMAKE_CURRENT_SOURCE_DIR}/METADATA")
   endif()
 
@@ -256,6 +257,7 @@ function(add_pywhl_package targetName)
       "${manifest_file}" --dep-file "${package_depfile}" --work-dir
       "${build_dir}" --package "${whl_file}"
     OUTPUT "${whl_file}"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     DEPENDS "${PYWHL_SCRIPT_FILE_PATH}" "${manifest_file}"
     DEPFILE "${package_depfile}")
 
@@ -265,6 +267,7 @@ function(add_pywhl_package targetName)
       "${manifest_file}" --dep-file "${dev_depfile}" --work-dir "${build_dir}"
       --install --editable --force-reinstall
     OUTPUT "${dev_depfile}"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     DEPENDS "${PYWHL_SCRIPT_FILE_PATH}" "${manifest_file}"
     DEPFILE "${dev_depfile}")
 
