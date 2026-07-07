@@ -143,7 +143,7 @@ function(add_pywhl_package targetName)
     set(args_LICENSE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
   endif()
 
-  if(NOT EXISTS "${args_LICENSE_FILE}")
+  if(NOT EXISTS "${args_LICENSE_FILE}" AND NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${args_LICENSE_FILE}")
     message(FATAL_ERROR "License file not found: ${args_LICENSE_FILE}")
   endif()
 
@@ -194,7 +194,7 @@ function(add_pywhl_package targetName)
       list(GET info 0 pkgname2)
       list(GET info 1 tgts)
       if("${modname}" STREQUAL "${pkgname2}")
-        set(modtargets "${tgts}")
+        list(APPEND modtargets ${tgts})
       endif()
     endforeach()
     if("${modmanifest}" STREQUAL "NOTFOUND")
@@ -258,7 +258,7 @@ function(add_pywhl_package targetName)
       "${build_dir}" --package "${whl_file}"
     OUTPUT "${whl_file}"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    DEPENDS "${PYWHL_SCRIPT_FILE_PATH}" "${manifest_file}"
+    DEPENDS "${PYWHL_SCRIPT_FILE_PATH}" "${manifest_file}" ${targets}
     DEPFILE "${package_depfile}")
 
   add_custom_command(
@@ -277,6 +277,7 @@ function(add_pywhl_package targetName)
       "${manifest_file}" --dep-file "${editable_depfile}" --work-dir
       "${build_dir}" --package "${editable_whl_file}" --editable
     OUTPUT "${editable_whl_file}" "${editable_depfile}"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     DEPENDS "${PYWHL_SCRIPT_FILE_PATH}" "${manifest_file}"
     DEPFILE "${editable_depfile}")
 
@@ -289,7 +290,7 @@ function(add_pywhl_package targetName)
     DEPENDS "${editable_depfile}" "${PYWHL_SCRIPT_FILE_PATH}"
             "${manifest_file}")
 
-  add_custom_target(${targetName} DEPENDS "${whl_file}" "${package_depfile}")
+  add_custom_target(${targetName} DEPENDS "${whl_file}" "${package_depfile}" ${targets})
 
   set_target_properties(${args_DEV_TARGET} PROPERTIES WHL_FILE "${whl_file}")
   set_target_properties(${args_DEV_TARGET} PROPERTIES EDITABLE_WHL_FILE

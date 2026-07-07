@@ -53,11 +53,11 @@ add_pywhl_module(nanobind_example
         ${CMAKE_CURRENT_SOURCE_DIR}/scripts/__init__.py@scripts
     DATA
         # Folders
-        ${CMAKE_CURRENT_SOURCE_DIR}/config
+        config
         ${CMAKE_CURRENT_SOURCE_DIR}/pyext_config@pyext
         # Files
         ${CMAKE_CURRENT_BINARY_DIR}/version_info.txt
-        ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt@scripts
+        CMakeLists.txt@scripts
 )
 
 add_pywhl_package(nanobind_example

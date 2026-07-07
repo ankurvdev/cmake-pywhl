@@ -137,6 +137,7 @@ class CMakeBuildWheel:
 
     def __init__(self, args: Args):
         CMakeBuildWheel._instance = self
+        self.args: Args = args
         self.work_dir: Path = args.work_dir
         tagpyversion = f"cp{sys.version_info.major}{sys.version_info.minor}"
         self.tag: str = f"{tagpyversion}-{tagpyversion}-{sys.platform}_{platform.machine()}"
@@ -422,11 +423,14 @@ class CMakeBuildWheel:
         _config_settings: dict[str, object] | None = None,
         _metadata_directory: str | None = None,
     ) -> Path:
-        whl_file = Path(out_dir) / (
-            self.whl_file_name or f"{self.build_info.name}-{self.build_info.version}-{self.tag}.whl"
-        )
+        if self.args.editable:
+            whl_file = Path(out_dir) / f"{self.build_info.name}-{self.build_info.version}-0.editable-py3-none-any.whl"
+        else:
+            whl_file = Path(out_dir) / (
+                self.whl_file_name or f"{self.build_info.name}-{self.build_info.version}-{self.tag}.whl"
+            )
         with zipfile.ZipFile(whl_file, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=0) as archive:
-            for fpath, src_file, contents in self._generate_wheel_content():
+            for fpath, src_file, contents in self._generate_wheel_content(self.args.editable):
                 if src_file is not None:
                     archive.write(src_file, fpath)
                 elif contents is not None:
