@@ -8,15 +8,26 @@ import sys
 from pathlib import Path
 
 
-def prepare_metadata_for_build_wheel(
-    _metadata_directory: str | None = None,
+def todo_prepare_metadata_for_build_wheel(
+    metadata_directory: str,
     _config_settings: dict[str, object] | None = None,
 ) -> str | None:
-    return None
-    # raise NotImplementedError(
-    #    f"prepare_metadata_for_build_editable(metadata_directory={_metadata_directory!r}, "
-    #    f"config_settings={_config_settings!r})",
-    # )
+    if _config_settings and len(_config_settings.items()) != 0:
+        raise ValueError(f"Dont know how to handle configs = {_config_settings!r}")
+    if not metadata_directory:
+        raise ValueError("prepare_metadata_for_build_wheel: empty metadata directory not supported")
+    _ = subprocess.check_call(
+        [
+            shutil.which("cmake") or "cmake",
+            "-B",
+            metadata_directory,
+            "-S",
+            ".",
+            f"-DPython3_EXECUTABLE={sys.executable}",
+            f"-DPyWhl_DIR={Path(__file__).parent.as_posix()}",
+        ],
+    )
+
 
 
 def get_requires_for_build_wheel(
@@ -113,7 +124,7 @@ def build_editable(
 #    return next(Path(wheel_directory).glob("*-0.editable-py3-none-any.whl")).relative_to(wheel_directory).as_posix()
 
 
-def prepare_metadata_for_build_editable(
+def todo_prepare_metadata_for_build_editable(
     _metadata_directory: str,
     _config_settings: dict[str, object] | None = None,
 ) -> str:
