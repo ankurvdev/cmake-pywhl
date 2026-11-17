@@ -88,6 +88,7 @@ def _editable_files(sp: Path) -> list[Path]:
 
 _UV = shutil.which("uv")
 requires_uv = pytest.mark.skipif(_UV is None, reason="uv is required for the build-backend tests")
+requires_ninja = pytest.mark.skipif(shutil.which("ninja") is None, reason="Ninja is required for the fresh-tree test")
 
 
 def _uv_pip_install(python: Path, args: list[str | Path]) -> subprocess.CompletedProcess[str]:
@@ -105,6 +106,8 @@ def _cmake_configure(
     build_dir: Path,
     python: Path,
     cmake_prefix: Path,
+    *,
+    generator: str | None = None,
 ) -> None:
     _run(
         [
@@ -112,6 +115,7 @@ def _cmake_configure(
             source_dir,
             "-B",
             build_dir,
+            *(["-G", generator] if generator else []),
             f"-DPython3_EXECUTABLE={python}",
             f"-DCMAKE_PREFIX_PATH={cmake_prefix}",
             f"-DFETCHCONTENT_BASE_DIR={(build_dir / '_fetchcontent').as_posix()}",
@@ -360,6 +364,34 @@ def test_cmake_pywhl(folder_name: str, tmp_path: Path) -> None:
     _log("functional test — runtime venv (wheel install)")
     if whl_install_test.exists():
         _run([runtime_python, whl_install_test])
+
+
+@requires_ninja
+def test_all_whl_builds_in_a_fresh_ninja_tree(folder_name: str, tmp_path: Path) -> None:
+    """`all_whl` is the first target built after configuring a Ninja tree.
+    """
+    source_copy = tmp_path / "source"
+    build_dir = tmp_path / "build"
+    build_venv = tmp_path / "build_venv"
+    shutil.copytree(
+        REPO_ROOT,
+        source_copy,
+        ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+    )
+    _run([sys.executable, source_copy / "build.py", source_copy / "PyWhlConfig.cmake"])
+    _make_venv(build_venv)
+
+    _cmake_configure(
+        source_copy / "tests" / folder_name,
+        build_dir,
+        _venv_python(build_venv),
+        source_copy,
+        generator="Ninja",
+    )
+    _cmake_build(build_dir, "all_whl")
+
+    if not [whl for whl in build_dir.rglob("*.whl") if ".editable" not in whl.name]:
+        pytest.fail(f"all_whl produced no wheel under {build_dir}")
 
 
 # PEP 517 build-backend tests (cmake_pywhl.build)
