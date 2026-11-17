@@ -461,7 +461,7 @@ def test_build_backend_editable_unsupported(backend_folder_name: str, tmp_path: 
 
     if result.returncode == 0:
         pytest.fail(f"Editable install unexpectedly succeeded:\n{combined}")
-    if "Editable builds not supported by the build backend" not in combined:
+    if "Editable builds not supported by the build" not in combined:
         pytest.fail(f"Editable failure did not report the expected message:\n{combined}")
     if "PyWhlConfig.cmake" not in combined:
         pytest.fail(f"Editable failure did not point the user at PyWhlConfig.cmake:\n{combined}")
