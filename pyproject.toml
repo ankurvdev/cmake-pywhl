@@ -31,6 +31,7 @@ ignore = [
     "D", # documentation
     "ANN101", # type annotation for self
     "ANN204", # Missing return type annotation for special method
+    "CPY001", # Missing copyright notice
     "DTZ005", # `datetime.datetime.now()` called without a `tz` argument
     "EM101", # Exception must not use a string literal, assign to variable first
     "EM102", # Exception must not use an f-string literal, assign to variable first
@@ -40,6 +41,7 @@ ignore = [
     "FBT002", # Boolean default positional argument in function definition
     "TRY003", # Avoid specifying long messages outside the exception class
     "G004", #Logging statement uses f-string
+    "INP001", #part of an implicit namespace package. Add an `__init__.py`.
     "S310", # Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.
     "S603", #  subprocess call - check for execution of untrusted input.
 ]

@@ -256,7 +256,7 @@ function(add_pywhl_package targetName)
       "${Python3_EXECUTABLE}" "${PYWHL_SCRIPT_FILE_PATH}" --verbose --manifest
       "${manifest_file}" --dep-file "${package_depfile}" --work-dir
       "${build_dir}" --package "${whl_file}"
-    OUTPUT "${whl_file}"
+    OUTPUT "${whl_file}" "${package_depfile}"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     DEPENDS "${PYWHL_SCRIPT_FILE_PATH}" "${manifest_file}" ${targets}
     DEPFILE "${package_depfile}")

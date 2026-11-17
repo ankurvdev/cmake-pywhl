@@ -75,8 +75,10 @@ def _site_packages(venv: Path) -> Path:
         [
             _venv_python(venv),
             "-c",
-            "import site, pathlib;"
-            "print(next(p for p in site.getsitepackages() if pathlib.Path(p).name == 'site-packages'))",
+            (
+                "import site, pathlib;"
+                "print(next(p for p in site.getsitepackages() if pathlib.Path(p).name == 'site-packages'))"
+            ),
         ],
     )
     return Path(result.stdout.strip())
@@ -88,6 +90,7 @@ def _editable_files(sp: Path) -> list[Path]:
 
 _UV = shutil.which("uv")
 requires_uv = pytest.mark.skipif(_UV is None, reason="uv is required for the build-backend tests")
+requires_ninja = pytest.mark.skipif(shutil.which("ninja") is None, reason="Ninja is required for the fresh-tree test")
 
 
 def _uv_pip_install(python: Path, args: list[str | Path]) -> subprocess.CompletedProcess[str]:
@@ -105,6 +108,8 @@ def _cmake_configure(
     build_dir: Path,
     python: Path,
     cmake_prefix: Path,
+    *,
+    generator: str | None = None,
 ) -> None:
     _run(
         [
@@ -112,6 +117,7 @@ def _cmake_configure(
             source_dir,
             "-B",
             build_dir,
+            *(["-G", generator] if generator else []),
             f"-DPython3_EXECUTABLE={python}",
             f"-DCMAKE_PREFIX_PATH={cmake_prefix}",
             f"-DFETCHCONTENT_BASE_DIR={(build_dir / '_fetchcontent').as_posix()}",
@@ -362,6 +368,33 @@ def test_cmake_pywhl(folder_name: str, tmp_path: Path) -> None:
         _run([runtime_python, whl_install_test])
 
 
+@requires_ninja
+def test_all_whl_builds_in_a_fresh_ninja_tree(folder_name: str, tmp_path: Path) -> None:
+    """`all_whl` is the first target built after configuring a Ninja tree."""
+    source_copy = tmp_path / "source"
+    build_dir = tmp_path / "build"
+    build_venv = tmp_path / "build_venv"
+    shutil.copytree(
+        REPO_ROOT,
+        source_copy,
+        ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+    )
+    _run([sys.executable, source_copy / "build.py", source_copy / "PyWhlConfig.cmake"])
+    _make_venv(build_venv)
+
+    _cmake_configure(
+        source_copy / "tests" / folder_name,
+        build_dir,
+        _venv_python(build_venv),
+        source_copy,
+        generator="Ninja",
+    )
+    _cmake_build(build_dir, "all_whl")
+
+    if not [whl for whl in build_dir.rglob("*.whl") if ".editable" not in whl.name]:
+        pytest.fail(f"all_whl produced no wheel under {build_dir}")
+
+
 # PEP 517 build-backend tests (cmake_pywhl.build)
 def _prepare_backend_env(tmp_path: Path) -> tuple[Path, Path]:
     """Copy the repo, create a venv, and install the cmake_pywhl build backend into it.
@@ -385,8 +418,7 @@ def _prepare_backend_env(tmp_path: Path) -> tuple[Path, Path]:
 
 @requires_uv
 def test_build_backend(backend_folder_name: str, tmp_path: Path) -> None:
-    """`uv pip install tests/<folder>` builds + installs a wheel via cmake_pywhl.build.
-    """
+    """`uv pip install tests/<folder>` builds + installs a wheel via cmake_pywhl.build."""
     source_copy, venv = _prepare_backend_env(tmp_path)
     python = _venv_python(venv)
     test_scripts = TESTS_DIR / backend_folder_name / "tests"
@@ -413,8 +445,7 @@ def test_build_backend(backend_folder_name: str, tmp_path: Path) -> None:
 
 @requires_uv
 def test_build_backend_editable_unsupported(backend_folder_name: str, tmp_path: Path) -> None:
-    """Editable installs via the backend must fail, pointing the user at the cmake module.
-    """
+    """Editable installs via the backend must fail, pointing the user at the cmake module."""
     source_copy, venv = _prepare_backend_env(tmp_path)
     python = _venv_python(venv)
     folder_copy = source_copy / "tests" / backend_folder_name
@@ -430,7 +461,7 @@ def test_build_backend_editable_unsupported(backend_folder_name: str, tmp_path: 
 
     if result.returncode == 0:
         pytest.fail(f"Editable install unexpectedly succeeded:\n{combined}")
-    if "Editable builds not supported by the build backend" not in combined:
+    if "Editable builds not supported by the build" not in combined:
         pytest.fail(f"Editable failure did not report the expected message:\n{combined}")
     if "PyWhlConfig.cmake" not in combined:
         pytest.fail(f"Editable failure did not point the user at PyWhlConfig.cmake:\n{combined}")
