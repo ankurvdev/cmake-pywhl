@@ -75,8 +75,10 @@ def _site_packages(venv: Path) -> Path:
         [
             _venv_python(venv),
             "-c",
-            "import site, pathlib;"
-            "print(next(p for p in site.getsitepackages() if pathlib.Path(p).name == 'site-packages'))",
+            (
+                "import site, pathlib;"
+                "print(next(p for p in site.getsitepackages() if pathlib.Path(p).name == 'site-packages'))"
+            ),
         ],
     )
     return Path(result.stdout.strip())
@@ -368,8 +370,7 @@ def test_cmake_pywhl(folder_name: str, tmp_path: Path) -> None:
 
 @requires_ninja
 def test_all_whl_builds_in_a_fresh_ninja_tree(folder_name: str, tmp_path: Path) -> None:
-    """`all_whl` is the first target built after configuring a Ninja tree.
-    """
+    """`all_whl` is the first target built after configuring a Ninja tree."""
     source_copy = tmp_path / "source"
     build_dir = tmp_path / "build"
     build_venv = tmp_path / "build_venv"
@@ -417,8 +418,7 @@ def _prepare_backend_env(tmp_path: Path) -> tuple[Path, Path]:
 
 @requires_uv
 def test_build_backend(backend_folder_name: str, tmp_path: Path) -> None:
-    """`uv pip install tests/<folder>` builds + installs a wheel via cmake_pywhl.build.
-    """
+    """`uv pip install tests/<folder>` builds + installs a wheel via cmake_pywhl.build."""
     source_copy, venv = _prepare_backend_env(tmp_path)
     python = _venv_python(venv)
     test_scripts = TESTS_DIR / backend_folder_name / "tests"
@@ -445,8 +445,7 @@ def test_build_backend(backend_folder_name: str, tmp_path: Path) -> None:
 
 @requires_uv
 def test_build_backend_editable_unsupported(backend_folder_name: str, tmp_path: Path) -> None:
-    """Editable installs via the backend must fail, pointing the user at the cmake module.
-    """
+    """Editable installs via the backend must fail, pointing the user at the cmake module."""
     source_copy, venv = _prepare_backend_env(tmp_path)
     python = _venv_python(venv)
     folder_copy = source_copy / "tests" / backend_folder_name
